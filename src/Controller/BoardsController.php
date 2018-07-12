@@ -1,40 +1,87 @@
 <?php
 namespace App\Controller;
 
+use Cake\ORM\TableRegistry;
+use Cake\Validation\Validator;
+
 class BoardsController extends AppController{
-    public function index($id = null){
+    private $people;
+
+    public function initialize(){
+        parent::initialize();
+        $this->people = TableRegistry::get('People');
+
+    }
+
+    public function index(){
+        $data = $this->Boards
+                           ->find('all')
+                           ->order([ 'Boards.id' => 'DESC' ])
+                           ->contain(['People']);
+        $this->set('data',$data);
+    }
+
+    public function add(){
+        if( $this->request->isPost() ){
+            if( !$this->people->checkNameAndPass($this->request->data)  ){
+                $this->Flash->error('登録情報が存在しません。名前かパスワードを確認して下さい。');
+            } else {
+                $res = $this->people->find()
+                                    ->where([ 'name' => $this->request->data['name'] ])
+                                    ->andWhere([ 'password' => $this->request->data['password'] ])
+                                    ->first();
+                $board = $this->Boards->newEntity();
+                $board->name = $this->request->data['name'];
+                $board->title = $this->request->data['title'];
+                $board->content = $this->request->data['content'];
+                $board->person_id = $res['id'];
+                
+                if( $this->Boards->save($board) ){
+                    $this->redirect(['action' => 'index' ]);
+                }
+            }
+        } 
         $this->set( 'entity',$this->Boards->newEntity() );
-        if($id != null){
-            try{
-                $entity = $this->Boards->get($id);
-                $this->set('entity',$entity);
-            } catch(Exception $e){
-                Logg::write('debug',$e->getMassage());
-            }
-        }
-        $data = $this->Boards->find('all')->order(['id' => 'DESC']);
-        $this->set('data',$data->toArray());
-        $this->set('count',$data->count());
     }
 
-    public function  addRecord(){
-        if($this->request->is('post')){
-            $board = $this->Boards->newEntity($this->request->data);
-            $this->Boards->save($board);
-        }
-        return $this->redirect(['action' => 'index']);
+    public function show( $param = 0 ){
+        $data = $this->Boards
+                    ->find()
+                    ->where([ 'Boards.id' => $param ])
+                    ->contain(['People'])
+                    ->first();
+        $this->set( 'data', $data );
     }
 
-    public function editRecord(){
-        if($this->request->is('put')){
-            try{
-                $entity = $this->Boards->get($this->request->data['id']);
-                $this->Boards->patchEntity($entity,$this->request->data);
-                $this->Boards->save($entity);
-            } catch(Exception $e){
-                Loog::write('debug',$e->getMassage());
-            }
-        }
-        return $this->redirect(['action' => 'index']);
+    public function show2( $param = 0 ){
+        $data = $this->people->get($param);
+        $this->set( 'data', $data );
     }
+
+    public function edit($param = 0){
+        if( $this->request->isPut() ){
+            $board = $this->Boards->find()
+                                  ->where([ 'Boards.id' => $param ])
+                                  ->contain(['People'])
+                                  ->first();
+            $board->title = $this->request->data['title'];
+            $board->content = $this->request->data['content'];
+            $board->person_id = $this->request->data['person_id'];
+
+            if( !$this->people->checkNameAndPass($this->request->data) ){
+                $this->Flash->error('登録情報が存在しません。名前かパスワードが確認して下さい。');
+            } else {
+                if( $this->Boards->save($board) ){
+                    $this->redirect(['action' => 'index' ]);
+                }
+            }
+        } else {
+            $board = $this->Boards->find()
+                                  ->where([ 'Boards.id' => $param ])
+                                  ->contain(['People'])
+                                  ->first();
+        }
+        $this->set( 'entity', $board );
+    }
+
 }
